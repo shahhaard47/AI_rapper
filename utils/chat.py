@@ -1,5 +1,6 @@
 # utils/chat.py
 import streamlit as st
+from utils.chat_db import init_db, save_chat, load_chats
 
 def summarize_chat(client, messages):
     """Generate a summary for the chat."""
@@ -18,14 +19,20 @@ class ChatManager:
         self.username = username
         self.client = client
 
-        if "chat_histories" not in st.session_state:
-            st.session_state.chat_histories = {}
-        if self.username not in st.session_state.chat_histories:
-            st.session_state.chat_histories[self.username] = {}
+        # Initialize database
+        init_db()
 
-        self.user_chats = st.session_state.chat_histories[self.username]
+        # Load chats from the database
+        self.user_chats = load_chats(username)
+
         if "current_chat" not in st.session_state:
             st.session_state.current_chat = "New Chat"
+
+    def save_current_chat(self):
+        """Save the current chat to the database."""
+        chat_name = st.session_state.current_chat
+        if chat_name and chat_name in self.user_chats:
+            save_chat(self.username, chat_name, self.user_chats[chat_name])
 
     def display_sidebar(self):
         """Display the chat management sidebar."""
@@ -69,8 +76,11 @@ class ChatManager:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
+        # Save the chat after displaying
+        self.save_current_chat()
+
     def handle_user_input(self, prompt):
-        """Handle user input and generate a response."""
+        """Handle user input and save chat state."""
         with st.chat_message("user"):
             st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -87,3 +97,4 @@ class ChatManager:
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
         self.user_chats[st.session_state.current_chat] = st.session_state.messages
+        self.save_current_chat()
